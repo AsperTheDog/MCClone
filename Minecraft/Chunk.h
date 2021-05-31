@@ -7,6 +7,9 @@
 #include "Model.h"
 #include <unordered_map>
 #include <math.h>
+#include <mutex>
+
+extern std::mutex mtx, renderMtx, updateMtx;
 
 class Chunk {
 	std::vector<uint8_t> fileIds;
@@ -15,6 +18,7 @@ class Chunk {
 	std::unordered_map<uint8_t, unsigned short> counts;
 	std::unordered_map<uint8_t, std::vector<uint8_t>>* blockData;
 	std::vector<std::shared_ptr<Chunk>>* chunks;
+	std::vector<std::shared_ptr<Chunk>>* chunksToRender;
 	std::unordered_map<uint8_t, std::shared_ptr<Model>> models;
 	std::vector<uint8_t>* clrList;
 	Chunk* neighbors[4] = { nullptr, nullptr, nullptr, nullptr };
@@ -33,7 +37,7 @@ class Chunk {
 		for (int z = 0; z < zC; z++) {
 			for (int y = 0; y < size; y++) {
 				for (int x = 0; x < size; x++) {
-					uint8_t r = abs(std::min(1, rand() % 30) - 1);
+					uint8_t r = 1;
 					fileIds.push_back(r);
 				}
 			}
@@ -71,7 +75,7 @@ class Chunk {
 		int x = ix + size * xC;
 		int y = iy + size * yC;
 		int z = iz;
-		unsigned short texId;
+		uint8_t texId;
 		float clr;
 		if (id != 0 && (ix == 0 || ix == size - 1 || iy == 0 || iy == size - 1)){
 			getBorderData(index, borderData, neighbors);
@@ -210,30 +214,29 @@ class Chunk {
 		}
 	}
 
-	void loadChunk(glm::vec2 erasedCoords, bool erase) {
-		neighbors[0] = nullptr;
-		neighbors[1] = nullptr;
-		neighbors[2] = nullptr;
-		neighbors[3] = nullptr;
-		uint8_t count = 0;
-		for (auto& ch : *chunks) {
-			if (erase and ch->getCoords() == erasedCoords) {
+	unsigned int getNeighbors(const std::vector<std::shared_ptr<Chunk>>* chunkLst, unsigned int count, const glm::vec2 erasedCoords, const bool erase) {
+		if (count == 4) {
+			return 4;
+		}
+		for (auto& ch : *chunkLst) {
+			glm::vec2 coords = ch->getCoords();
+			if (erase and coords == erasedCoords) {
 				continue;
 			}
-			if (abs(ch->xC - xC) + abs(ch->yC - yC) == 1) {
-				if (ch->xC - xC == -1) {
+			if (abs(coords.x - xC) + abs(coords.y - yC) == 1) {
+				if (coords.x - xC == -1) {
 					neighbors[0] = ch.get();
 					count++;
 				}
-				else if (ch->xC - xC == 1) {
+				else if (coords.x - xC == 1) {
 					neighbors[1] = ch.get();
 					count++;
 				}
-				else if (ch->yC - yC == -1) {
+				else if (coords.y - yC == -1) {
 					neighbors[2] = ch.get();
 					count++;
 				}
-				else if (ch->yC - yC == 1) {
+				else if (coords.y - yC == 1) {
 					neighbors[3] = ch.get();
 					count++;
 				}
@@ -242,7 +245,23 @@ class Chunk {
 				}
 			}
 		}
+		return count;
+	}
 
+	void loadChunk(const glm::vec2 erasedCoords, const bool erase) {
+		neighbors[0] = nullptr;
+		neighbors[1] = nullptr;
+		neighbors[2] = nullptr;
+		neighbors[3] = nullptr;
+
+		bool locked = mtx.try_lock();
+		int count = getNeighbors(chunks, 0, erasedCoords, erase);
+		getNeighbors(chunksToRender, count, erasedCoords, erase);
+		if (locked) {
+			mtx.unlock();
+		}
+
+		updateMtx.lock();
 		uint8_t borderData[4];
 		for (int i = 0; i < fileIds.size(); i++) {
 			if (fileIds.at(i) != 0) {
@@ -256,23 +275,12 @@ class Chunk {
 				reviewSides(i, borderData, neighbors);
 			}
 		}
-	}
-
-	void updateModel() {
-		for (std::pair<unsigned short, std::vector<Vertex>> elem : blocks) {
-			std::shared_ptr<Mesh> m = std::shared_ptr<Mesh>(new Mesh(elem.second.data(), elem.second.size(), indices.at(elem.first).data(), indices.at(elem.first).size(), shader));
-			std::vector <std::shared_ptr<Mesh>> mesh;
-			mesh.push_back(m);
-			models.at(elem.first)->resetMeshes(mesh);
-		}
-		blocks.clear();
-		indices.clear();
-		counts.clear();
+		updateMtx.unlock();
 	}
 
 public:
-	Chunk(const int cube, const unsigned int xCArg, const int yCArg, const int zCArg, const int sizeArg, std::unordered_map<uint8_t, std::vector<uint8_t>>* blockData, std::vector<uint8_t>* clrlist, std::vector<std::shared_ptr<Chunk>>* chunks, std::shared_ptr<Shader> shader)
-		: xC(xCArg), yC(yCArg), zC(zCArg), size(sizeArg), chunks(chunks), clrList(clrlist), blockData(blockData), shader(shader)
+	Chunk(const unsigned int xCArg, const int yCArg, const int zCArg, const int sizeArg, std::unordered_map<uint8_t, std::vector<uint8_t>>* blockData, std::vector<uint8_t>* clrlist, std::vector<std::shared_ptr<Chunk>>* chunks, std::vector<std::shared_ptr<Chunk>>* chunksToLoad, std::shared_ptr<Shader> shader)
+		: xC(xCArg), yC(yCArg), zC(zCArg), size(sizeArg), chunks(chunks), chunksToRender(chunksToLoad), clrList(clrlist), blockData(blockData), shader(shader)
 	{	
 		createTerrain();
 
@@ -287,21 +295,19 @@ public:
 		return coor == getCoords();
 	}
 
-	void reloadNeighbors(bool erase = false) {
+	Chunk** reloadNeighbors(bool erase = false) {
 		for (int i = 0; i < 4; i++) {
 			if (neighbors[i]) {
 				neighbors[i]->loadChunk(getCoords(), erase);
-				neighbors[i]->updateModel();
 			}
 		}
+		return neighbors;
 	}
 
 	std::unordered_map<uint8_t, std::shared_ptr<Model>> createModel(std::shared_ptr<Material> mat, std::unordered_map<uint8_t, std::shared_ptr<Texture>> texDiffs) {
 		for (std::pair<unsigned short, std::vector<Vertex>> elem : blocks) {
 			std::shared_ptr<Mesh> m = std::shared_ptr<Mesh>(new Mesh(elem.second.data(), elem.second.size(), indices.at(elem.first).data(), indices.at(elem.first).size(), shader));
-			std::vector <std::shared_ptr<Mesh>> mesh;
-			mesh.push_back(m);
-			models.emplace(elem.first, std::shared_ptr<Model>(new Model(glm::vec3(0, 0, 0), mat, texDiffs.at(elem.first), mesh)));
+			models.emplace(elem.first, std::shared_ptr<Model>(new Model(glm::vec3(0, 0, 0), mat, texDiffs.at(elem.first), m)));
 		}
 		blocks.clear();
 		indices.clear();
@@ -309,15 +315,19 @@ public:
 		return models;
 	}
 
+	void updateModel() {
+		for (std::pair<unsigned short, std::vector<Vertex>> elem : blocks) {
+			std::shared_ptr<Mesh> m = std::shared_ptr<Mesh>(new Mesh(elem.second.data(), elem.second.size(), indices.at(elem.first).data(), indices.at(elem.first).size(), shader));
+			renderMtx.lock();
+			models.at(elem.first)->resetMeshes(m);
+			renderMtx.unlock();
+		}
+		blocks.clear();
+		indices.clear();
+		counts.clear();
+	}
+
 	glm::vec2 getCoords() {
 		return glm::vec2(xC, yC);
-	}
-
-	void updateModPos(int pos) {
-		modPos.push_back(pos);
-	}
-
-	std::vector<int> getModPos() {
-		return modPos;
 	}
 };

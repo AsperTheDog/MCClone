@@ -33,7 +33,7 @@ private:
 	{
 		glCreateVertexArrays(1, &VAO);
 		glBindVertexArray(VAO);
-
+		
 		glGenBuffers(1, &VBO);
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
 		glBufferData(GL_ARRAY_BUFFER, vertexNum * sizeof(Vertex), this->vArray.get(), GL_STATIC_DRAW);

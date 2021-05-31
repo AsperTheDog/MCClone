@@ -3,8 +3,8 @@
 #include "libs.h"
 #include "Chunk.h"
 #include <thread>
-#include <unordered_map>
 #include <mutex>
+#include <unordered_map>
 
 struct pair_hash {
 	std::size_t operator () (const glm::vec2& p) const {
@@ -20,7 +20,6 @@ struct pair_hash {
 class Game
 {
 private:
-	std::mutex mtx;
 	std::thread chunkLoader;
 	GLFWwindow* window;
 	GLint fbwidth;
@@ -63,7 +62,10 @@ private:
 	glm::vec3 camFront;
 	glm::vec3 worldUp;
 
-	glm::vec2* lastChunk;
+	std::shared_ptr<glm::vec2> lastChunk;
+	std::vector<glm::vec2> notLoadedChunks;
+	std::vector<std::shared_ptr<Chunk>> finishedChunks;
+	std::vector<Chunk*> chunksToUpdate;
 
 	void initWindow(const std::string& title, int width, const int height, int GLmayor, int GLminor, bool resizable);
 	void initMatrices();
@@ -75,7 +77,7 @@ private:
 	void initUniforms();
 	void updateUniforms();
 	void addChunk();
-	void removeChunk();
+	void loadChunks();
 	float calculateDistance(glm::vec2 coor);
 
 public:
