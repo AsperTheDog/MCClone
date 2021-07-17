@@ -165,6 +165,7 @@
     <ClInclude Include="Material.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="Primitives.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="vertex.h" />

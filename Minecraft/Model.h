@@ -39,6 +39,10 @@ public:
 		this->mesh->setScale(size);
 	}
 
+	void move(const glm::vec3 pos) {
+		this->mesh->setPos(pos);
+	}
+
 	void render(std::shared_ptr<Shader> shader)
 	{
 		mat->sendToShader(*shader);

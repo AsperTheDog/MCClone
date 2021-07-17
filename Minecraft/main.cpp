@@ -1,7 +1,7 @@
 #define _CRTDBG_MAP_ALLOC
 #include "Game.h"
 
-std::mutex mtx, renderMtx, updateMtx;
+std::mutex mtx, renderMtx, updateMtx, reloadMtx;
 
 int main()
 {

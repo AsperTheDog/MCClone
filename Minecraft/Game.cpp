@@ -4,13 +4,13 @@
 #include <iostream>
 #include <Windows.h>
 
-#define DISTANCE_SELECTION distancesMid
-#define MAX_DISTANCE 14
+#define DISTANCE_SELECTION distancesFar
+#define MAX_DISTANCE 20
 #define CHUNK_SIZE 16
 
 #define DISTANCE_SIZE *(&DISTANCE_SELECTION + 1) - DISTANCE_SELECTION
 
-extern std::mutex mtx, renderMtx, updateMtx;
+extern std::mutex mtx, renderMtx, updateMtx, reloadMtx;
 
 glm::vec2 distancesNear[] = {
 	{ 0,  0}, { 1,  0}, {-1,  0}, {-1, -1},
@@ -271,6 +271,17 @@ glm::vec2 distancesFar[] = {
 	{ 14,  -1}
 };
 
+std::shared_ptr<Chunk> findChunk(const std::vector<std::shared_ptr<Chunk>>& vecOfElements, const glm::vec2& element)
+{
+	int result;
+	for (std::shared_ptr<Chunk> ch : vecOfElements) {
+		if (ch->getCoords() == element) {
+			return ch;
+		}
+	}
+	return nullptr;
+}
+
 void resizeWindow(GLFWwindow* window, int fbw, int fbh)
 {
 	glViewport(0, 0, fbw, fbh);
@@ -313,7 +324,7 @@ void Game::initMatrices()
 {
 	worldUp = glm::vec3 (0.0f, 1.0f, 0.0f);
 	camFront = glm::vec3 (0.0f, 0.0f, -1.0f);
-	cameraPos = glm::vec3(0.0f, 110.0f, 1.0f);
+	cameraPos = glm::vec3(0.0f, 10.0f, 1.0f);
 	viewMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::lookAt(cameraPos, cameraPos + camFront, worldUp);
 
@@ -435,35 +446,13 @@ void Game::updateUniforms()
 
 void Game::addChunk()
 {
-	//glm::vec2 posCamera(floor(cam.getPos().x / CHUNK_SIZE), floor(cam.getPos().z / CHUNK_SIZE));
-	//glm::vec2 coor;
-	//bool finished = false;
-	//bool found = false;
-	//for (int i = 0; i < DISTANCE_SIZE; i++) {
-	//	coor = DISTANCE_SELECTION[i] + posCamera;
-	//	if (std::find(loadedChunks.begin(), loadedChunks.end(), coor) == loadedChunks.end()) {
-	//		found = true;
-	//		break;
-	//	}
-	//}
-	//if (found) {
-	//	std::shared_ptr<Chunk> chunk = std::shared_ptr<Chunk>(new Chunk(1, coor.x, coor.y, 100, CHUNK_SIZE, &blockData, &clrList, &chunks, &finishedChunks, shaders[0]));
-	//	chunks.push_back(chunk);
-	//	loadedChunks.push_back({ coor.x, coor.y });
-	//	models.emplace(coor, std::vector<std::shared_ptr<Model>>());
-	//	for (auto& mod : chunk->createModel(materials[0], textures))
-	//		models.at(coor).push_back(mod.second);
-	//	chunk->reloadNeighbors();
-	//}
-	//else {
-	//	finished = true;
-	//}
 	if (updateMtx.try_lock()) {
-		mtx.lock();
 		while (!finishedChunks.empty()) {
+			mtx.lock();
 			std::shared_ptr<Chunk> chunk = finishedChunks.back();
 			finishedChunks.pop_back();
 			notLoadedChunks.pop_back();
+			mtx.unlock();
 			chunks.push_back(chunk);
 			glm::vec2 coor = chunk->getCoords();
 			loadedChunks.push_back({ coor.x, coor.y });
@@ -472,11 +461,12 @@ void Game::addChunk()
 				models.at(coor).push_back(mod.second);
 		}
 		while (!chunksToUpdate.empty()) {
+			reloadMtx.lock();
 			Chunk* chunk = chunksToUpdate.back();
 			chunksToUpdate.pop_back();
 			chunk->updateModel();
+			reloadMtx.unlock();
 		}
-		mtx.unlock();
 		updateMtx.unlock();
 	}
 }
@@ -491,26 +481,29 @@ void Game::loadChunks()
 			bool found = false;
 			for (int i = 0; i < DISTANCE_SIZE; i++) {
 				coor = DISTANCE_SELECTION[i] + posCamera;
+				mtx.lock();
 				if (std::find(loadedChunks.begin(), loadedChunks.end(), coor) == loadedChunks.end() and
 					std::find(notLoadedChunks.begin(), notLoadedChunks.end(), coor) == notLoadedChunks.end()) {
 					found = true;
+					mtx.unlock();
 					break;
 				}
+				mtx.unlock();
 			}
 			if (found) {
-				std::shared_ptr<Chunk> chunk = std::shared_ptr<Chunk>(new Chunk(coor.x, coor.y, 200, CHUNK_SIZE, &blockData, &clrList, &chunks, &finishedChunks, shaders[0]));
+				std::shared_ptr<Chunk> chunk = std::shared_ptr<Chunk>(new Chunk(coor.x, coor.y, 100, CHUNK_SIZE, &blockData, &clrList, &chunks, &finishedChunks, shaders[0]));
 				mtx.lock();
 				finishedChunks.push_back(chunk);
 				notLoadedChunks.push_back(coor);
 				mtx.unlock();
 				Chunk** toLoad = chunk->reloadNeighbors();
-				mtx.lock();
+				reloadMtx.lock();
 				for (int i = 0; i < 4; i++) {
 					if (toLoad[i]) {
 						chunksToUpdate.push_back(toLoad[i]);
 					}
 				}
-				mtx.unlock();
+				reloadMtx.unlock();
 			}
 			else {
 				lastChunk = std::shared_ptr<glm::vec2>(new glm::vec2(posCamera));
@@ -524,9 +517,9 @@ void Game::loadChunks()
 				if (calculateDistance(coor) > MAX_DISTANCE) {
 					renderMtx.lock();
 					models.erase(coor);
+					renderMtx.unlock();
 					loadedChunks.erase(loadedChunks.begin() + i);
 					chunks.erase(chunks.begin() + i);
-					renderMtx.unlock();
 				}
 			}
 			mtx.unlock();
@@ -580,7 +573,14 @@ Game::~Game()
 void Game::update()
 {
 	addChunk();
-
+	bool fl = false;
+	glm::vec2 pos = glm::vec2(floor(cam.getPos().x / CHUNK_SIZE), floor(cam.getPos().z / CHUNK_SIZE));
+	glm::vec3 absPos = glm::vec3(cam.getPos());
+	std::shared_ptr<Chunk> ch = findChunk(chunks, pos);
+	if (ch) {
+		fl = ch->isNotAir(absPos);
+	}
+	cam.updateGravity(dt, fl);
 	updateDt();
 	updateInput();
 }
@@ -685,7 +685,7 @@ void Game::updateDt()
 	dt = curTime - lastTime;
 	nbFrames++;
 	if (curTime - lastTimeFPS >= 1.0) {
-		std::cout << 1000.0 / (double)nbFrames << " | " << nbFrames << " | " << chunks.size() << "\n";
+		std::cout << 1000.0 / (double)nbFrames << " | " << nbFrames << " | " << chunks.size() << " | " << "(" << cam.getPos().x << ", " << cam.getPos().z << ", " << cam.getPos().y << ")\n";
 		nbFrames = 0;
 		lastTimeFPS += 1.0;
 	}

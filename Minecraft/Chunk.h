@@ -6,7 +6,7 @@
 #include "Mesh.h"
 #include "Model.h"
 #include <unordered_map>
-#include <math.h>
+#include<cmath>
 #include <mutex>
 
 extern std::mutex mtx, renderMtx, updateMtx;
@@ -32,12 +32,22 @@ class Chunk {
 		return x + y * size + z * size * size;
 	}
 
+	//(x % 8 == 0 and y % 8 == 0) or (z % 8 == 0 and x % 8 == 0) or (z % 8 == 0 and y % 8 == 0) or z == 0
+	//(x < infRange and x > supRange) and (y < infRange and y > supRange) and (abs(z + xC * 8) % size < infRange and abs(z + xC * 8) % size > supRange)
 	void createTerrain() {
+		float infRange = (rand() % 4);
+		float supRange = (rand() % 4);
 		fileIds.reserve(zC * size * size * sizeof(uint8_t));
 		for (int z = 0; z < zC; z++) {
 			for (int y = 0; y < size; y++) {
 				for (int x = 0; x < size; x++) {
-					uint8_t r = 1;
+					uint8_t r = 0;
+					int xA = x + xC * size;
+					int yA = y + yC * size;
+					int zA = z;
+					if (((cos(xA/4) * infRange + cos(yA/4) * supRange)) > zA - 30) {
+						r = 1;
+					}
 					fileIds.push_back(r);
 				}
 			}
@@ -68,7 +78,7 @@ class Chunk {
 
 	void reviewSides(const unsigned int index, uint8_t* borderData, Chunk** neighbors)
 	{
-		unsigned short id = fileIds.at(index);
+		uint8_t id = fileIds.at(index);
 		int ix = index % size;
 		int iy = floor((index / size) % size);
 		int iz = floor(index / (size * size));
@@ -316,7 +326,7 @@ public:
 	}
 
 	void updateModel() {
-		for (std::pair<unsigned short, std::vector<Vertex>> elem : blocks) {
+		for (std::pair<uint8_t, std::vector<Vertex>> elem : blocks) {
 			std::shared_ptr<Mesh> m = std::shared_ptr<Mesh>(new Mesh(elem.second.data(), elem.second.size(), indices.at(elem.first).data(), indices.at(elem.first).size(), shader));
 			renderMtx.lock();
 			models.at(elem.first)->resetMeshes(m);
@@ -329,5 +339,17 @@ public:
 
 	glm::vec2 getCoords() {
 		return glm::vec2(xC, yC);
+	}
+
+	bool isNotAir(glm::vec3 pos) {
+		int x = round(pos.x - xC * size);
+		int y = round(pos.z - yC * size);
+		int z = pos.y - 2;
+		if (z < 0) {
+			z = 0;
+		}
+		int index = getCoordIndex(x, y, z);
+
+		return fileIds.at(index) != 0;
 	}
 };

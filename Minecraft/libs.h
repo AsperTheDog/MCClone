@@ -7,8 +7,8 @@
 #include "Model.h"
 #include "Light.h"
 
-#define AspectRatio 4 / 3
-#define WinHeight 720
+#define AspectRatio 16 / 9
+#define WinHeight 1080
 
 #define WinWidth WinHeight * AspectRatio
 

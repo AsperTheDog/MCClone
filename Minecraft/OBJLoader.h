@@ -17,6 +17,7 @@
 
 #include "Vertex.h"
 #include "Mesh.h"
+#include "Model.h"
 
 #define PI 3.14159265
 
@@ -44,108 +45,6 @@ static struct polyVertex
 	}
 };
 
-static bool isAcute(polyVertex v1, polyVertex v2, polyVertex v3)
-{
-	glm::vec3 right = v2.v.position - v1.v.position;
-	glm::vec3 left = v3.v.position - v2.v.position;
-
-	//return glm::dot(glm::cross(right, left), v2.v.normal) > 0;
-	return false;
-}
-
-static float getAngle(polyVertex v1, polyVertex v2, polyVertex v3)
-{
-	glm::vec3 right = v2.v.position - v1.v.position;
-	glm::vec3 left = v3.v.position - v2.v.position;
-
-	return acos(glm::dot(right, left) / (glm::length(right) * glm::length(left)));
-}
-
-static bool isInterior(std::vector<polyVertex>& poly, int i)
-{
-	int right = i == 0 ? poly.size() - 1 : i - 1;
-	int left = (i + 1) % poly.size();
-
-	float angle = 0;
-	for (int j = 0; j < poly.size(); j++)
-	{
-		if (j == right || j == i || j == left)
-		{
-			continue;
-		}
-		angle += getAngle(poly.at(right), poly.at(i), poly.at(left));
-	}
-	return angle != PI;
-}
-
-static void triangulate(std::vector<GLuint>& indices, Vertex* vertices, int vertexNum, int indexPos)
-{
-
-	int triangles = 0;
-	int i = 0, right = 0, left = 0;
-	std::vector<polyVertex> poly;
-	bool repeated = false;
-
-	for (int j = 0; j < vertexNum; j++)
-	{
-		for (polyVertex elem : poly)
-		{
-			if (elem.isEqual({ *(vertices + j), indexPos + j }))
-			{
-				repeated = true;
-			}
-		}
-
-		if (repeated)
-		{
-			repeated = false;
-			vertexNum--;
-			continue;
-		}
-
-		poly.push_back({ *(vertices + j), indexPos + j });
-	}
-
-	if (poly.size() < 3)
-	{
-		return;
-	}
-	else if (poly.size() == 3)
-	{
-		indices.push_back(poly.at(0).ind);
-		indices.push_back(poly.at(1).ind);
-		indices.push_back(poly.at(2).ind);
-		return;
-	}
-	else if (poly.size() == 4)
-	{
-		indices.push_back(poly.at(0).ind);
-		indices.push_back(poly.at(1).ind);
-		indices.push_back(poly.at(2).ind);
-
-		indices.push_back(poly.at(2).ind);
-		indices.push_back(poly.at(3).ind);
-		indices.push_back(poly.at(0).ind);
-		return;
-	}
-
-	while (triangles != vertexNum - 2)
-	{
-		right = i == 0 ? poly.size() - 1 : i - 1;
-		left = (i + 1) % poly.size();
-
-		if ((isAcute(poly.at(right), poly.at(i), poly.at(left)) && isInterior(poly, i)) || poly.size() == 3)
-		{
-			indices.push_back(poly.at(right).ind);
-			indices.push_back(poly.at(i).ind);
-			indices.push_back(poly.at(left).ind);
-
-			poly.erase(poly.begin() + i);
-			triangles++;
-		}
-		i = (i + 1) % poly.size();
-	}
-}
 
 static Model* loadOBJ(const std::string& filename, glm::vec3 pos, Material* mat, Texture* texDiff, Texture* texSpec, Shader* shader)
 {

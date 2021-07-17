@@ -17,22 +17,27 @@ private:
 
 	GLfloat movementSpeed;
 	GLfloat sensitivity;
+	glm::vec3 speed;
 
 	glm::vec3 worldUp;
 	glm::vec3 pos;
 	glm::vec3 front;
+	glm::vec3 frontMovement;
 	glm::vec3 right;
 	glm::vec3 up;
 
 	GLfloat pitch;
 	GLfloat yaw;
 	GLfloat roll;
+	bool inFloor;
 
 	void updateCameraVectors()
 	{
 		front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		frontMovement.x = cos(glm::radians(yaw));
 		front.y = sin(glm::radians(pitch));
 		front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+		frontMovement.z = sin(glm::radians(yaw));
 
 		front = glm::normalize(front);
 		right = glm::normalize(glm::cross(front, worldUp));
@@ -43,7 +48,7 @@ public:
 	Camera(glm::vec3 pos, glm::vec3 dir, glm::vec3 worldUp)
 	{
 		viewMatrix = glm::mat4(1.0f);
-		movementSpeed = 20.0f;
+		movementSpeed = 8.0f;
 		sensitivity = 8.0f;
 
 		this->worldUp = worldUp;
@@ -77,15 +82,25 @@ public:
 		return pos;
 	}
 
+	void updateGravity(const float& dt, bool inFloor) {
+		if (inFloor and speed.y <= 0) {
+			speed.y = 0;
+		}else if (speed.y > -70) {
+			speed.y -= 9.8 * (dt) * 4;
+		}
+		pos += speed * (dt);
+		this->inFloor = inFloor;
+	}
+
 	void move(const float& dt, const int dir)
 	{
 		switch (dir)
 		{
 		case FORW:
-			pos += front * movementSpeed * dt;
+			pos += frontMovement * movementSpeed * dt;
 			break;
 		case BACKW:
-			pos -= front * movementSpeed * dt;
+			pos -= frontMovement * movementSpeed * dt;
 			break;
 		case LEFT:
 			pos -= right * movementSpeed * dt;
@@ -94,14 +109,18 @@ public:
 			pos += right * movementSpeed * dt;
 			break;
 		case UP:
-			pos += worldUp * movementSpeed * dt;
+			if (inFloor) {
+				speed.y = 12;
+			}
+			//pos += worldUp * movementSpeed * dt;
 			break;
 		case DOWN:
-			pos -= worldUp * movementSpeed * dt;
+			//pos -= worldUp * movementSpeed * dt;
 			break;
 		default:
 			break;
 		};
+
 	}
 
 	void updateMouseInput(const float& dt, const double& offsetX, const double& offsetY)
@@ -121,5 +140,9 @@ public:
 	void updateInput(const float& dt, const int dir, const double& offsetX, const double &offsetY)
 	{
 		updateMouseInput(dt, offsetX, offsetY);
+	}
+
+	glm::vec3 getFront() {
+		return front;
 	}
 };
