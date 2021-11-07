@@ -11,6 +11,23 @@
 
 extern std::mutex mtx, renderMtx, updateMtx;
 
+
+const glm::vec2 texCoords[4] = {
+	glm::vec2(0, 0),
+	glm::vec2(0, 1),
+	glm::vec2(1, 0),
+	glm::vec2(1, 1)
+};
+
+const glm::vec3 normals[6] = {
+	glm::vec3( 0, -1,  0),
+	glm::vec3( 0,  1,  0),
+	glm::vec3( 0,  0, -1),
+	glm::vec3( 0,  0,  1),
+	glm::vec3(-1,  0,  0),
+	glm::vec3( 1,  0,  0)
+};
+
 class Chunk {
 	std::vector<uint8_t> fileIds;
 	std::unordered_map<uint8_t, std::vector<Vertex>> blocks;
@@ -32,6 +49,7 @@ class Chunk {
 		return x + y * size + z * size * size;
 	}
 
+	//((cos(xA/4) * infRange + cos(yA/4) * supRange)) > zA - 30
 	//(x % 8 == 0 and y % 8 == 0) or (z % 8 == 0 and x % 8 == 0) or (z % 8 == 0 and y % 8 == 0) or z == 0
 	//(x < infRange and x > supRange) and (y < infRange and y > supRange) and (abs(z + xC * 8) % size < infRange and abs(z + xC * 8) % size > supRange)
 	void createTerrain() {
@@ -45,8 +63,8 @@ class Chunk {
 					int xA = x + xC * size;
 					int yA = y + yC * size;
 					int zA = z;
-					if (((cos(xA/4) * infRange + cos(yA/4) * supRange)) > zA - 30) {
-						r = 1;
+					if ((x % 8 == 0 and y % 8 == 0) or (z % 8 == 0 and x % 8 == 0) or (z % 8 == 0 and y % 8 == 0) or z == 0) {
+						r = 5;
 					}
 					fileIds.push_back(r);
 				}
@@ -91,6 +109,7 @@ class Chunk {
 			getBorderData(index, borderData, neighbors);
 		}
 
+		// East
 		if ((ix == size - 1 && borderData[1] == 0) || (ix != size - 1 && fileIds.at(index + 1) == 0)) {
 			texId = blockData->at(id)[1];
 			if (std::find(clrList->begin(), clrList->end(), texId) != clrList->end()) {
@@ -99,10 +118,10 @@ class Chunk {
 			else {
 				clr = 1.0;
 			}
-			blocks[texId].push_back({ glm::vec3(x + 1, z, y), glm::vec2(0, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y), glm::vec2(0, 1), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z, y + 1), glm::vec2(1, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y + 1), glm::vec2(1, 1), clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z, y),		  texCoords[0], normals[5], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y),	  texCoords[1], normals[5], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z, y + 1),	  texCoords[2], normals[5], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y + 1), texCoords[3], normals[5], clr });
 
 			indices[texId].push_back(counts.at(texId));
 			indices[texId].push_back(counts.at(texId) + 1);
@@ -113,6 +132,7 @@ class Chunk {
 			counts.at(texId) += 4;
 		}
 
+		//West
 		if ((ix == 0 && borderData[0] == 0) || (ix != 0 && fileIds.at(index - 1) == 0)) {
 			texId = blockData->at(id)[1];
 			if (std::find(clrList->begin(), clrList->end(), texId) != clrList->end()) {
@@ -121,10 +141,10 @@ class Chunk {
 			else {
 				clr = 1.0;
 			}
-			blocks[texId].push_back({ glm::vec3(x, z, y), glm::vec2(0, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x, z, y + 1), glm::vec2(1, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x, z + 1, y), glm::vec2(0, 1), clr });
-			blocks[texId].push_back({ glm::vec3(x, z + 1, y + 1), glm::vec2(1, 1), clr });
+			blocks[texId].push_back({ glm::vec3(x, z, y),		  texCoords[0], normals[4], clr });
+			blocks[texId].push_back({ glm::vec3(x, z, y + 1),	  texCoords[1], normals[4], clr });
+			blocks[texId].push_back({ glm::vec3(x, z + 1, y),	  texCoords[2], normals[4], clr });
+			blocks[texId].push_back({ glm::vec3(x, z + 1, y + 1), texCoords[3], normals[4], clr });
 
 			indices[texId].push_back(counts.at(texId));
 			indices[texId].push_back(counts.at(texId) + 1);
@@ -135,6 +155,7 @@ class Chunk {
 			counts.at(texId) += 4;
 		}
 
+		// South
 		if ((iy == size - 1 && borderData[3] == 0) || (iy != size - 1 && fileIds.at(index + size) == 0)) {
 			texId = blockData->at(id)[1];
 			if (std::find(clrList->begin(), clrList->end(), texId) != clrList->end()) {
@@ -143,10 +164,10 @@ class Chunk {
 			else {
 				clr = 1.0;
 			}
-			blocks[texId].push_back({ glm::vec3(x, z, y + 1), glm::vec2(0, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z, y + 1), glm::vec2(1, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x, z + 1, y + 1), glm::vec2(0, 1), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y + 1), glm::vec2(1, 1), clr });
+			blocks[texId].push_back({ glm::vec3(x, z, y + 1),		  texCoords[0], normals[3], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z, y + 1),	  texCoords[1], normals[3], clr });
+			blocks[texId].push_back({ glm::vec3(x, z + 1, y + 1),	  texCoords[2], normals[3], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y + 1), texCoords[3], normals[3], clr });
 
 			indices[texId].push_back(counts.at(texId));
 			indices[texId].push_back(counts.at(texId) + 1);
@@ -157,6 +178,7 @@ class Chunk {
 			counts.at(texId) += 4;
 		}
 
+		//North
 		if ((iy == 0 && borderData[2] == 0) || (iy != 0 && fileIds.at(index - size) == 0)) {
 			texId = blockData->at(id)[1];
 			if (std::find(clrList->begin(), clrList->end(), texId) != clrList->end()) {
@@ -165,10 +187,10 @@ class Chunk {
 			else {
 				clr = 1.0;
 			}
-			blocks[texId].push_back({ glm::vec3(x, z, y), glm::vec2(0, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x, z + 1, y), glm::vec2(0, 1), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z, y), glm::vec2(1, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y), glm::vec2(1, 1), clr });
+			blocks[texId].push_back({ glm::vec3(x, z, y),		  texCoords[0], normals[2], clr });
+			blocks[texId].push_back({ glm::vec3(x, z + 1, y),	  texCoords[1], normals[2], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z, y),	  texCoords[2], normals[2], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y), texCoords[3], normals[2], clr });
 
 			indices[texId].push_back(counts.at(texId));
 			indices[texId].push_back(counts.at(texId) + 1);
@@ -179,6 +201,7 @@ class Chunk {
 			counts.at(texId) += 4;
 		}
 
+		// Up
 		if (iz == zC - 1 || fileIds.at(index + size * size) == 0) {
 			texId = blockData->at(id)[2];
 			if (std::find(clrList->begin(), clrList->end(), texId) != clrList->end()) {
@@ -187,10 +210,10 @@ class Chunk {
 			else {
 				clr = 1.0;
 			}
-			blocks[texId].push_back({ glm::vec3(x, z + 1, y), glm::vec2(0, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x, z + 1, y + 1), glm::vec2(0, 1), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y), glm::vec2(1, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y + 1), glm::vec2(1, 1), clr });
+			blocks[texId].push_back({ glm::vec3(x, z + 1, y),		  texCoords[0], normals[1], clr });
+			blocks[texId].push_back({ glm::vec3(x, z + 1, y + 1),	  texCoords[1], normals[1], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y),	  texCoords[2], normals[1], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z + 1, y + 1), texCoords[3], normals[1], clr });
 
 			indices[texId].push_back(counts.at(texId));
 			indices[texId].push_back(counts.at(texId) + 1);
@@ -201,6 +224,7 @@ class Chunk {
 			counts.at(texId) += 4;
 		}
 
+		// Down
 		if (iz == 0 || fileIds.at(index - size * size) == 0) {
 			texId = blockData->at(id)[0];
 			if (std::find(clrList->begin(), clrList->end(), texId) != clrList->end()) {
@@ -209,10 +233,10 @@ class Chunk {
 			else {
 				clr = 1.0;
 			}
-			blocks[texId].push_back({ glm::vec3(x, z, y), glm::vec2(0, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z, y), glm::vec2(0, 1), clr });
-			blocks[texId].push_back({ glm::vec3(x, z, y + 1), glm::vec2(1, 0), clr });
-			blocks[texId].push_back({ glm::vec3(x + 1, z, y + 1), glm::vec2(1, 1), clr });
+			blocks[texId].push_back({ glm::vec3(x, z, y),		  texCoords[0], normals[0], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z, y),	  texCoords[1], normals[0], clr });
+			blocks[texId].push_back({ glm::vec3(x, z, y + 1),	  texCoords[2], normals[0], clr });
+			blocks[texId].push_back({ glm::vec3(x + 1, z, y + 1), texCoords[3], normals[0], clr });
 
 			indices[texId].push_back(counts.at(texId));
 			indices[texId].push_back(counts.at(texId) + 1);
@@ -314,10 +338,10 @@ public:
 		return neighbors;
 	}
 
-	std::unordered_map<uint8_t, std::shared_ptr<Model>> createModel(std::shared_ptr<Material> mat, std::unordered_map<uint8_t, std::shared_ptr<Texture>> texDiffs) {
+	std::unordered_map<uint8_t, std::shared_ptr<Model>> createModel(std::shared_ptr<Material> mat, std::unordered_map<uint8_t, std::shared_ptr<Texture>> texDiffs, std::shared_ptr<Texture> texSpec) {
 		for (std::pair<unsigned short, std::vector<Vertex>> elem : blocks) {
 			std::shared_ptr<Mesh> m = std::shared_ptr<Mesh>(new Mesh(elem.second.data(), elem.second.size(), indices.at(elem.first).data(), indices.at(elem.first).size(), shader));
-			models.emplace(elem.first, std::shared_ptr<Model>(new Model(glm::vec3(0, 0, 0), mat, texDiffs.at(elem.first), m)));
+			models.emplace(elem.first, std::shared_ptr<Model>(new Model(glm::vec3(0, 0, 0), mat, texDiffs.at(elem.first), m, texSpec)));
 		}
 		blocks.clear();
 		indices.clear();

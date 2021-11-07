@@ -50,6 +50,10 @@ private:
 		glVertexAttribPointer(attribLoc, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, texCoord));
 		glEnableVertexAttribArray(attribLoc);
 
+		attribLoc = coreProgram->getAttribLoc("normal");
+		glVertexAttribPointer(attribLoc, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, normal));
+		glEnableVertexAttribArray(attribLoc);
+
 		attribLoc = coreProgram->getAttribLoc("clr");
 		glVertexAttribPointer(attribLoc, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, clr));
 		glEnableVertexAttribArray(attribLoc);

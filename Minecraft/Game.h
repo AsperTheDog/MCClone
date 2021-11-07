@@ -48,6 +48,7 @@ private:
 	std::vector<std::shared_ptr<Shader>> shaders;
 	std::unordered_map<uint8_t, std::vector<uint8_t>> blockData;
 	std::unordered_map<uint8_t, std::shared_ptr<Texture>> textures;
+	std::shared_ptr<Texture> texSpec;
 	std::vector<std::shared_ptr<Material>> materials;
 	std::unordered_map<glm::vec2, std::vector<std::shared_ptr<Model>>, pair_hash> models;
 	std::vector< std::shared_ptr<Chunk>> chunks;

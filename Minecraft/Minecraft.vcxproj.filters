@@ -67,5 +67,8 @@
     <None Include="VertexShader.glsl">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="blockData.dat">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -324,7 +324,7 @@ void Game::initMatrices()
 {
 	worldUp = glm::vec3 (0.0f, 1.0f, 0.0f);
 	camFront = glm::vec3 (0.0f, 0.0f, -1.0f);
-	cameraPos = glm::vec3(0.0f, 10.0f, 1.0f);
+	cameraPos = glm::vec3(0.0f, 100.0f, 1.0f);
 	viewMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::lookAt(cameraPos, cameraPos + camFront, worldUp);
 
@@ -356,7 +356,7 @@ void Game::initShaders(int majVer, int minVer)
 
 void Game::initTextures()
 {
-	materials.push_back(std::shared_ptr<Material>(new Material(glm::vec3(1.0f), glm::vec3(1.0f), glm::vec3(0.0f), 0, 1)));
+	materials.push_back(std::shared_ptr<Material>(new Material(glm::vec3(0.1f), glm::vec3(1.0f), glm::vec3(1.0f), 0, 1)));
 	std::ifstream file("blockData.dat");
 	if (file) {
 		std::string ch;
@@ -403,6 +403,7 @@ void Game::initTextures()
 			}
 		}
 	}
+	texSpec = std::shared_ptr<Texture>(new Texture("assets/white.png", GL_TEXTURE_2D));
 	//textures.push_back(new Texture("assets/block/cobblestone.png", GL_TEXTURE_2D));
 }
 
@@ -413,7 +414,7 @@ void Game::initPointLights()
 
 void Game::initLights()
 {
-	//initPointLights();
+	initPointLights();
 }
 
 void Game::initUniforms()
@@ -457,7 +458,7 @@ void Game::addChunk()
 			glm::vec2 coor = chunk->getCoords();
 			loadedChunks.push_back({ coor.x, coor.y });
 			models.emplace(coor, std::vector<std::shared_ptr<Model>>());
-			for (auto& mod : chunk->createModel(materials[0], textures))
+			for (auto& mod : chunk->createModel(materials[0], textures, texSpec))
 				models.at(coor).push_back(mod.second);
 		}
 		while (!chunksToUpdate.empty()) {
@@ -574,11 +575,17 @@ void Game::update()
 {
 	addChunk();
 	bool fl = false;
-	glm::vec2 pos = glm::vec2(floor(cam.getPos().x / CHUNK_SIZE), floor(cam.getPos().z / CHUNK_SIZE));
-	glm::vec3 absPos = glm::vec3(cam.getPos());
-	std::shared_ptr<Chunk> ch = findChunk(chunks, pos);
-	if (ch) {
-		fl = ch->isNotAir(absPos);
+	try {
+		glm::vec2 pos = glm::vec2(floor(cam.getPos().x / CHUNK_SIZE), floor(cam.getPos().z / CHUNK_SIZE));
+		glm::vec3 absPos = glm::vec3(cam.getPos());
+		std::shared_ptr<Chunk> ch = findChunk(chunks, pos);
+		if (ch) {
+			fl = ch->isNotAir(absPos);
+		}
+
+	}
+	catch (const std::exception&) {
+		fl = false;
 	}
 	cam.updateGravity(dt, fl);
 	updateDt();
@@ -587,7 +594,9 @@ void Game::update()
 
 void Game::render()
 {
-	glClearColor(0.3f, 0.7f, 1.0f, 1.0f);
+	//glClearColor(0.3f, 0.7f, 1.0f, 1.0f);
+	//glClearColor(0.06f, 0.06f, 0.2f, 1.0f);
+	glClearColor(0.f, 0.f, 0.f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	//rotation.y += 0.5f;
 
@@ -667,7 +676,7 @@ void Game::updateMouseInput()
 
 	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS)
 	{
-		//pointLights[0]->setPos(cam.getPos());
+		pointLights[0]->setPos(cam.getPos());
 	}
 }
 

@@ -10,12 +10,13 @@ class Model
 private:
 	std::shared_ptr<Material> mat;
 	std::shared_ptr<Texture> texDiff;
+	std::shared_ptr<Texture> texSpec;
 	std::shared_ptr<Mesh> mesh;
 	glm::vec3 position;
 
 public:
-	Model(glm::vec3 pos, std::shared_ptr<Material> mat, std::shared_ptr<Texture> texDiff, std::shared_ptr<Mesh> mesh)
-		: position(pos), mat(mat), texDiff(texDiff), mesh(mesh)
+	Model(glm::vec3 pos, std::shared_ptr<Material> mat, std::shared_ptr<Texture> texDiff, std::shared_ptr<Mesh> mesh, std::shared_ptr<Texture> texSpec)
+		: position(pos), mat(mat), texDiff(texDiff), mesh(mesh), texSpec(texSpec)
 	{
 		this->mesh->move(position);
 		this->mesh->setOrig(position);
@@ -49,6 +50,8 @@ public:
 
 		shader->use();
 		texDiff->bind(0);
+		texSpec->bind(1);
+
 
 		this->mesh->render();
 
